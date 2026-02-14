@@ -2,11 +2,36 @@
 let users = JSON.parse(localStorage.getItem('velora_users')) || [];
 let posts = JSON.parse(localStorage.getItem('velora_posts')) || [];
 let chats = JSON.parse(localStorage.getItem('velora_chats')) || {};
+let notifications = JSON.parse(localStorage.getItem('velora_notifications')) || [];
 let currentUser = null;
 let currentSection = 'home';
 let selectedChatUser = null;
+let chatUpdateInterval = null;
+let notifCheckInterval = null;
 
-// Demo data
+// ==================== SESSION CHECK ====================
+function checkSession() {
+    const savedUser = localStorage.getItem('velora_current_user');
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+            // Verify user still exists
+            const exists = users.find(u => u.id === currentUser.id);
+            if (exists) {
+                showDashboard();
+            } else {
+                localStorage.removeItem('velora_current_user');
+                showLogin();
+            }
+        } catch (e) {
+            showLogin();
+        }
+    } else {
+        showLogin();
+    }
+}
+
+// ==================== INIT DEMO DATA ====================
 if (users.length === 0) {
     users.push({
         id: 1,
@@ -16,7 +41,17 @@ if (users.length === 0) {
         password: '123456',
         bio: 'Hanya manusia biasa yang suka coding',
         avatar: null,
-        since: '17 Maret 2025'
+        since: new Date().toLocaleDateString('id-ID')
+    });
+    users.push({
+        id: 2,
+        username: 'jeje',
+        name: 'Akhmad',
+        email: 'jeje@velora.com',
+        password: '123456',
+        bio: 'Suka ngoding dan ngopi ☕',
+        avatar: null,
+        since: new Date().toLocaleDateString('id-ID')
     });
     localStorage.setItem('velora_users', JSON.stringify(users));
 }
@@ -28,13 +63,515 @@ if (posts.length === 0) {
         userName: 'Demo User',
         username: 'demo',
         userAvatar: null,
-        image: null,
+        media: null,
+        mediaType: null,
         caption: 'Halo ini postingan pertama di VELORA! ✨',
-        time: '2 jam lalu',
-        likes: [1], // array user id yg like
-        comments: [
-            { userId: 1, username: 'demo', text: 'Mantap jiwa!', time: '1 jam lalu' }
-        ]
+        time: new Date().toLocaleString(),
+        likes: [],
+        comments: []
+    });
+    localStorage.setItem('velora_posts', JSON.stringify(posts));
+}
+
+// ==================== UI HELPERS ====================
+function setTitle(page) {
+    document.title = page === 'login' ? 'VELORA • Masuk' : 
+                     page === 'register' ? 'VELORA • Daftar' : 
+                     'VELORA • Dashboard';
+}
+
+function showRegister() {
+    document.getElementById('registerPage').style.display = 'flex';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('dashboardPage').style.display = 'none';
+    setTitle('register');
+    stopIntervals();
+}
+
+function showLogin() {
+    document.getElementById('registerPage').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('dashboardPage').style.display = 'none';
+    setTitle('login');
+    stopIntervals();
+}
+
+function showDashboard() {
+    document.getElementById('registerPage').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('dashboardPage').style.display = 'block';
+    setTitle('dashboard');
+    updateNavAvatar();
+    showSection('home');
+    startIntervals();
+}
+
+function stopIntervals() {
+    if (chatUpdateInterval) clearInterval(chatUpdateInterval);
+    if (notifCheckInterval) clearInterval(notifCheckInterval);
+}
+
+function startIntervals() {
+    stopIntervals();
+    // Check for new messages every 2 seconds
+    chatUpdateInterval = setInterval(checkNewMessages, 2000);
+    // Check for new notifications every 3 seconds
+    notifCheckInterval = setInterval(updateNotificationBadge, 3000);
+}
+
+// ==================== TOAST NOTIFICATION ====================
+function showToast(message, type = 'info', title = '') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    const titles = {
+        success: 'Berhasil!',
+        error: 'Gagal!',
+        warning: 'Peringatan!',
+        info: 'Info'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || 'ℹ️'}</div>
+        <div class="toast-content">
+            <h4>${title || titles[type]}</h4>
+            <p>${message}</p>
+        </div>
+    `;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ==================== AUTH ====================
+function register() {
+    const username = document.getElementById('regUsername').value.trim();
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+
+    if (!username || !name || !email || !password) {
+        showToast('Semua field wajib diisi!', 'warning');
+        return;
+    }
+
+    if (users.find(u => u.email === email)) {
+        showToast('Email sudah terdaftar.', 'error');
+        return;
+    }
+    if (users.find(u => u.username === username)) {
+        showToast('Username sudah dipakai.', 'error');
+        return;
+    }
+
+    const newUser = {
+        id: Date.now(),
+        username,
+        name,
+        email,
+        password,
+        bio: 'Halo, saya baru di VELORA! 👋',
+        avatar: null,
+        since: new Date().toLocaleDateString('id-ID')
+    };
+
+    users.push(newUser);
+    localStorage.setItem('velora_users', JSON.stringify(users));
+    showToast('Registrasi berhasil! Silakan login.', 'success');
+    showLogin();
+}
+
+function login() {
+    const identity = document.getElementById('loginIdentity').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    const user = users.find(u => (u.email === identity || u.username === identity) && u.password === password);
+
+    if (!user) {
+        showToast('Email/Username atau password salah!', 'error');
+        return;
+    }
+
+    currentUser = user;
+    localStorage.setItem('velora_current_user', JSON.stringify(currentUser));
+    showDashboard();
+}
+
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('velora_current_user');
+    showLogin();
+    showToast('Berhasil keluar', 'info');
+}
+
+function updateNavAvatar() {
+    if (!currentUser) return;
+    const initial = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('navAvatar').innerText = initial;
+}
+
+// ==================== SEARCH USER ====================
+function searchUser(query) {
+    const resultsDiv = document.getElementById('searchResults');
+    if (!query.trim() || !currentUser) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const filtered = users.filter(u => 
+        u.id !== currentUser.id && 
+        u.username.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if (filtered.length === 0) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(u => {
+        const initial = u.name.charAt(0).toUpperCase();
+        html += `
+            <div class="search-item" onclick="startChatWith(${u.id})">
+                <div class="avatar">${initial}</div>
+                <div class="info">
+                    <h4>${u.name}</h4>
+                    <p>@${u.username}</p>
+                </div>
+            </div>
+        `;
+    });
+
+    resultsDiv.innerHTML = html;
+    resultsDiv.style.display = 'block';
+}
+
+function startChatWith(userId) {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('searchUserInput').value = '';
+    
+    selectedChatUser = user;
+    showSection('chat');
+}
+
+// ==================== SECTION RENDER ====================
+function showSection(section) {
+    currentSection = section;
+    
+    // Update active menu
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const activeMenu = document.getElementById(`menu-${section}`);
+    if (activeMenu) activeMenu.classList.add('active');
+
+    if (section === 'home') renderHome();
+    else if (section === 'profile') renderProfile();
+    else if (section === 'editProfile') renderEditProfile();
+    else if (section === 'news') renderNews();
+    else if (section === 'upload') renderUpload();
+    else if (section === 'chat') renderChat();
+    else if (section === 'notifications') renderNotifications();
+}
+
+// ==================== HOME (FEED) ====================
+function renderHome() {
+    let html = '<h2 class="section-title">🏠 Beranda</h2>';
+    
+    posts.sort((a,b) => b.id - a.id).forEach(post => {
+        const user = users.find(u => u.id === post.userId) || { name: 'Unknown', username: 'unknown' };
+        const initial = user.name.charAt(0).toUpperCase();
+        const isLiked = currentUser && post.likes && post.likes.includes(currentUser.id);
+        
+        html += `
+            <div class="post-card" id="post-${post.id}">
+                <div class="post-header">
+                    <div class="post-avatar">${initial}</div>
+                    <div class="post-user">
+                        <h4>${user.name} <span style="color:#64748b; font-size:0.9rem;">@${user.username}</span></h4>
+                        <span>${new Date(post.time).toLocaleString()}</span>
+                    </div>
+                </div>
+                <p style="margin-bottom:12px;">${post.caption}</p>
+        `;
+        
+        if (post.media) {
+            if (post.mediaType === 'video') {
+                html += `<video src="${post.media}" controls class="post-image" style="max-height:400px; object-fit:contain;"></video>`;
+            } else {
+                html += `<img src="${post.media}" class="post-image" style="max-height:400px; object-fit:contain;">`;
+            }
+        }
+        
+        html += `
+                <div class="post-actions">
+                    <span class="like-btn ${isLiked ? 'liked' : ''}" onclick="likePost(${post.id})">
+                        <span class="heart-icon">❤️</span> ${post.likes ? post.likes.length : 0}
+                    </span>
+                    <span onclick="toggleComments(${post.id})" style="cursor:pointer;">
+                        💬 ${post.comments ? post.comments.length : 0}
+                    </span>
+                </div>
+                
+                <div id="comments-${post.id}" style="display: none;" class="comment-section">
+        `;
+        
+        if (post.comments && post.comments.length > 0) {
+            post.comments.forEach(cmt => {
+                const commentUser = users.find(u => u.id === cmt.userId) || { name: 'Unknown', username: 'unknown' };
+                const commentInitial = commentUser.name.charAt(0).toUpperCase();
+                html += `
+                    <div class="comment">
+                        <div class="comment-avatar">${commentInitial}</div>
+                        <div class="comment-content">
+                            <strong>${commentUser.name} <span>@${commentUser.username}</span></strong>
+                            <p>${cmt.text}</p>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html += '<p style="color:#94a3b8;">Belum ada komentar.</p>';
+        }
+        
+        html += `
+                    <div class="add-comment">
+                        <input type="text" id="comment-input-${post.id}" placeholder="Tulis komentar...">
+                        <button onclick="addComment(${post.id})">Kirim</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    document.getElementById('contentArea').innerHTML = html;
+}
+
+function toggleComments(postId) {
+    const el = document.getElementById(`comments-${postId}`);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function likePost(postId) {
+    if (!currentUser) return;
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (!post.likes) post.likes = [];
+    
+    const index = post.likes.indexOf(currentUser.id);
+    if (index === -1) {
+        post.likes.push(currentUser.id);
+        // Create notification for post owner
+        if (post.userId !== currentUser.id) {
+            notifications.push({
+                id: Date.now(),
+                userId: post.userId,
+                type: 'like',
+                fromUser: currentUser,
+                postId: post.id,
+                read: false,
+                time: new Date().toISOString()
+            });
+        }
+    } else {
+        post.likes.splice(index, 1);
+    }
+
+    localStorage.setItem('velora_posts', JSON.stringify(posts));
+    localStorage.setItem('velora_notifications', JSON.stringify(notifications));
+    renderHome();
+    updateNotificationBadge();
+}
+
+function addComment(postId) {
+    const input = document.getElementById(`comment-input-${postId}`);
+    const text = input.value.trim();
+    if (!text || !currentUser) return;
+
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (!post.comments) post.comments = [];
+    post.comments.push({
+        userId: currentUser.id,
+        username: currentUser.username,
+        text: text,
+        time: new Date().toISOString()
+    });
+
+    // Create notification for post owner
+    if (post.userId !== currentUser.id) {
+        notifications.push({
+            id: Date.now(),
+            userId: post.userId,
+            type: 'comment',
+            fromUser: currentUser,
+            postId: post.id,
+            comment: text,
+            read: false,
+            time: new Date().toISOString()
+        });
+    }
+
+    localStorage.setItem('velora_posts', JSON.stringify(posts));
+    localStorage.setItem('velora_notifications', JSON.stringify(notifications));
+    input.value = '';
+    renderHome();
+    showToast('Komentar ditambahkan', 'success');
+    updateNotificationBadge();
+}
+
+// ==================== PROFILE ====================
+function renderProfile() {
+    if (!currentUser) return;
+    const initial = currentUser.name.charAt(0).toUpperCase();
+    const userPosts = posts.filter(p => p.userId === currentUser.id);
+    
+    let html = `
+        <h2 class="section-title">👤 Profilku</h2>
+        <div class="profile-header">
+            <div class="profile-avatar-large">${initial}</div>
+            <div class="profile-info">
+                <h2>${currentUser.name}</h2>
+                <p>@${currentUser.username}</p>
+                <p>📧 ${currentUser.email}</p>
+                <p>📝 ${currentUser.bio || 'Belum ada bio.'}</p>
+                <p>📅 Member sejak: ${currentUser.since}</p>
+                <p>📸 Postingan: ${userPosts.length}</p>
+            </div>
+        </div>
+        <h3 style="margin: 40px 0 20px;">📸 Postinganku</h3>
+    `;
+
+    if (userPosts.length === 0) {
+        html += '<p style="color:#94a3b8;">Belum ada postingan.</p>';
+    } else {
+        userPosts.forEach(post => {
+            html += `
+                <div class="post-card">
+                    <p>${post.caption}</p>
+                    ${post.media ? (post.mediaType === 'video' ? `<video src="${post.media}" controls style="width:100%; max-height:300px;"></video>` : `<img src="${post.media}" style="width:100%; max-height:300px; object-fit:cover;">`) : ''}
+                    <div class="post-actions">
+                        <span>❤️ ${post.likes ? post.likes.length : 0}</span>
+                        <span>💬 ${post.comments ? post.comments.length : 0}</span>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    document.getElementById('contentArea').innerHTML = html;
+}
+
+// ==================== EDIT PROFILE ====================
+function renderEditProfile() {
+    if (!currentUser) return;
+    let html = `
+        <h2 class="section-title">✏️ Edit Profil</h2>
+        <div class="edit-form">
+            <input type="text" id="editUsername" placeholder="Username" value="${currentUser.username}">
+            <input type="text" id="editName" placeholder="Nama lengkap" value="${currentUser.name}">
+            <input type="email" id="editEmail" placeholder="Email" value="${currentUser.email}">
+            <textarea id="editBio" placeholder="Bio" rows="4">${currentUser.bio || ''}</textarea>
+            <button class="btn" onclick="saveProfile()">Simpan Perubahan</button>
+        </div>
+    `;
+    document.getElementById('contentArea').innerHTML = html;
+}
+
+function saveProfile() {
+    const newUsername = document.getElementById('editUsername').value.trim();
+    const newName = document.getElementById('editName').value.trim();
+    const newEmail = document.getElementById('editEmail').value.trim();
+    const newBio = document.getElementById('editBio').value.trim();
+
+    if (!newUsername || !newName || !newEmail) {
+        showToast('Username, nama, dan email wajib diisi.', 'warning');
+        return;
+    }
+
+    // Check username unique (except self)
+    if (users.find(u => u.username === newUsername && u.id !== currentUser.id)) {
+        showToast('Username sudah dipakai orang lain.', 'error');
+        return;
+    }
+
+    // Update
+    currentUser.username = newUsername;
+    currentUser.name = newName;
+    currentUser.email = newEmail;
+    currentUser.bio = newBio;
+
+    const index = users.findIndex(u => u.id === currentUser.id);
+    if (index !== -1) users[index] = currentUser;
+    localStorage.setItem('velora_users', JSON.stringify(users));
+    localStorage.setItem('velora_current_user', JSON.stringify(currentUser));
+
+    showToast('Profil diperbarui!', 'success');
+    updateNavAvatar();
+    showSection('profile');
+}
+
+// ==================== NEWS ====================
+function renderNews() {
+    let html = `
+        <h2 class="section-title">📰 Berita Terkini</h2>
+        <div class="news-grid">
+            <div class="news-card">
+                <h3>✨ VELORA Versi 3</h3>
+                <p>Fitur upload foto/video, notifikasi real-time, dan perbaikan UI!</p>
+                <small>Baru saja</small>
+            </div>
+            <div class="news-card">
+                <h3>📸 Upload Media</h3>
+                <p>Sekarang bisa upload foto dan video beneran!</p>
+                <small>5 menit lalu</small>
+            </div>
+            <div class="news-card">
+                <h3>🔔 Notifikasi</h3>
+                <p>Titik merah di chat & notif kalau ada yang baru.</p>
+                <small>10 menit lalu</small>
+            </div>
+        </div>
+    `;
+    document.getElementById('contentArea').innerHTML = html;
+}
+
+// ==================== UPLOAD ====================
+let uploadedMedia = null;
+let mediaType = null;
+
+function renderUpload() {
+    let html = `
+        <h2 class="section-title">📤 Upload Media</h2>
+        <div class="upload-area" onclick="triggerFileUpload()">
+            <p style="font-size: 3rem; margin-bottom: 16px;">📸</p>
+            <p style="font-size: 1.3rem; font-weight: 600;">Klik untuk upload foto/video</p>
+            <p style="color: #64748b;">Atau drag & drop file</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;" onchange="handleFileSelect(event)">
+        <div id="uploadPreview" class="upload-preview" style="display: none;"></div>
+        <div style="margin-top: 32px;">
+            <input type="text" id="captionInput" placeholder="Tulis caption..." style="width:100%; padding:16px; border-radius:30px; border:2px solid #e2e8f0; margin-bottom:16px;">
+            <button class="btn" onclick="publishPost()">Publikasikan</button>
+        </div>
+    `;
+    document.getElementById('contentArea').innerH        ]
     });
     localStorage.setItem('velora_posts', JSON.stringify(posts));
 }
