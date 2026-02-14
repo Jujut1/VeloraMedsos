@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VELORA • Masuk</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- REGISTER PAGE -->
+    <div class="auth-wrapper" id="registerPage">
+        <div class="auth-card">
+            <div class="brand">
+                <h1>VELORA</h1>
+                <p>Daftar dan mulai berbagi cerita ✨</p>
+            </div>
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" id="regUsername" placeholder="@johndoe" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>Nama Lengkap</label>
+                <input type="text" id="regName" placeholder="cth: Andi Pratama">
+            </div>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="regEmail" placeholder="nama@email.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="regPassword" placeholder="••••••••">
+            </div>
+            <button class="btn" onclick="register()">Daftar</button>
+            <div class="auth-switch">
+                Sudah punya akun? <a onclick="showLogin()">Masuk</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN PAGE -->
+    <div class="auth-wrapper" id="loginPage" style="display: none;">
+        <div class="auth-card">
+            <div class="brand">
+                <h1>VELORA</h1>
+                <p>Selamat datang kembali 🌟</p>
+            </div>
+            <div class="input-group">
+                <label>Email atau Username</label>
+                <input type="text" id="loginIdentity" placeholder="email / username">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="••••••••">
+            </div>
+            <button class="btn" onclick="login()">Masuk</button>
+            <div class="auth-switch">
+                Belum punya akun? <a onclick="showRegister()">Daftar</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard-wrapper" id="dashboardPage" style="display: none;">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-left">
+                    <h2 class="logo">VELORA</h2>
+                </div>
+                <div class="nav-search">
+                    <input type="text" id="searchUserInput" placeholder="Cari username..." onkeyup="searchUser(this.value)">
+                    <div id="searchResults" class="search-dropdown"></div>
+                </div>
+                <div class="nav-right">
+                    <div class="nav-icons">
+                        <span class="icon" onclick="showSection('home')">🏠</span>
+                        <span class="icon" onclick="showSection('chat')">💬</span>
+                        <span class="icon" onclick="showSection('notifications')">🔔</span>
+                    </div>
+                    <div class="profile-dropdown" onclick="toggleDropdown()">
+                        <div class="nav-avatar" id="navAvatar">V</div>
+                        <div class="dropdown-menu" id="dropdownMenu">
+                            <a onclick="showSection('profile')">👤 Profilku</a>
+                            <a onclick="showSection('editProfile')">✏️ Edit Profil</a>
+                            <a onclick="showSection('news')">📰 Berita</a>
+                            <a onclick="logout()">🚪 Keluar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Container -->
+        <div class="main-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-menu">
+                    <a onclick="showSection('home')" class="menu-item active" id="menu-home">🏠 Beranda</a>
+                    <a onclick="showSection('profile')" class="menu-item" id="menu-profile">👤 Profilku</a>
+                    <a onclick="showSection('editProfile')" class="menu-item" id="menu-edit">✏️ Edit Profil</a>
+                    <a onclick="showSection('news')" class="menu-item" id="menu-news">📰 Berita</a>
+                    <a onclick="showSection('upload')" class="menu-item" id="menu-upload">📤 Upload</a>
+                    <a onclick="showSection('chat')" class="menu-item" id="menu-chat">💬 Chat</a>
+                </div>
+                <div class="sidebar-footer">
+                    <p>© 2025 VELORA</p>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content-area" id="contentArea">
+                <!-- diisi JS -->
+            </main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
